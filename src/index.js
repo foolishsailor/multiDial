@@ -1,12 +1,10 @@
-export const multiDial = function({
+const multiDial = function({
   container = "multidial",
   numberDials = 1,
-  radius = 30,
+  radius = 40,
   multiDialOffset = 1,
   individualDialOpts = [],
 
-  max = 100,
-  min = 0,
   dialX = 50,
   dialY = 50,
   dialComponentClass = "dial-component",
@@ -22,11 +20,31 @@ export const multiDial = function({
   defaultLineCap = "round", //[round | butt | square]
   defaultArc = 300,
   defaultOrientation = 0,
+  defaultMaxValue = 100,
+  defaultMinValue = 0,
+  defaultColorSchedule = function(value){
+    switch(true){
+      case value < 25:
+        return 'blue';
+      case value >= 25 && value < 50:
+        return 'green';
+      case value >= 50 && value < 75:
+        return 'yellow';
+      case value >= 75:
+          return 'red';
+    }
+  },
 
   label = function(val) {
     return Math.round(val);
   }
 }) {
+
+  /**
+   * Normalizes the angle to between 0 and 359
+   * @param {Nnteger} value - angle
+   * @return {number} - Normalized angle
+   */
   const normalizeAngle = value => {
     if (value >= 0 && value < 360) return value;
     if (value > 359) return value - 360;
@@ -36,17 +54,14 @@ export const multiDial = function({
   const SVG_ORIG = "http://www.w3.org/2000/svg";
 
   let _container = document.getElementById(container),
-    _dials = [];
-
-  //normalize orientation from x axis to yasix 'up'
-  defaultOrientation = defaultOrientation - 90;
+    dials = [];
 
   /**
-   * A utility function to create SVG dom tree
-   * @param {String} name The SVG element name
-   * @param {Object} attrs The attributes as they appear in DOM e.g. stroke-width and not strokeWidth
-   * @param {Array} children An array of children (can be created by this same function)
-   * @return The SVG element
+   * Creates SVG DOM element - including nesting dials, text etc.  Returns single SVGElement
+   * @param {String} tag The SVG element type name
+   * @param {Object} opts The svg attributes 
+   * @param {Array} nestedDials An array of nested dials or text
+   * @return {SVGElement} The SVG element
    */
   const buildSVG = ({ tag, opts, nestedDials }) => {
     let svg = document.createElementNS(SVG_ORIG, tag);
@@ -72,13 +87,33 @@ export const multiDial = function({
     return (percentage * arcAngle) / 100;
   };
 
-  const normalize = (value, min, max) => {
+   /**
+    * Checks if user has entered a custom value for a given property on a given dial
+   * If not then default value applied
+    * @param {Objectr} opts - User created options for each dial
+    * @param {String} prop - Property to check
+    * @param {*} defaultProp - Default property to apply
+    */
+  const checkUserProp = (opts, prop, defaultProp) => {
+    return opts &&
+    opts.hasOwnProperty(prop)
+      ? opts[prop]
+      : defaultProp;
+  };
+
+  /**
+   * Limits value generated to given min/max values set by user
+   */
+  const limitValue = (value, min, max) => {
     var val = Number(value);
     if (val > max) return max;
     if (val < min) return min;
     return val;
   };
 
+  /**
+   * Changes given value to percentage based on min / max
+   */
   const getValueInPercentage = (value, min, max) => {
     var newMax = max - min,
       newVal = value - min;
@@ -87,19 +122,13 @@ export const multiDial = function({
 
   /**
    * Gets cartesian points for a specified radius and angle (in degrees)
-   * @param centerX {Number} The center x co-oriinate
-   * @param centerY {Number} The center y co-ordinate
-   * @param radius {Number} The radius of the circle
-   * @param angle {Number} The angle in degrees
-   * @return An object with x,y co-ordinates
+   * @param {Number} centerX  The center x coord
+   * @param {Number} centerY  The center y coord
+   * @param {Number} radius  The radius of the circle
+   * @param {Number} angle The angle in degrees
+   * @return {Object} An object with x,y coords
    */
-  const getCartesianPoints = (
-    centerX,
-    centerY,
-    radius,
-    angle,
-    strokeOffset
-  ) => {
+  const getCartesianPoints = (centerX, centerY, radius, angle) => {
     var rad = (angle * Math.PI) / 180;
     return {
       x: Math.round((centerX + radius * Math.cos(rad)) * 1000) / 1000,
@@ -107,6 +136,13 @@ export const multiDial = function({
     };
   };
 
+  /**
+   * Takes in radius and start and end angles and returns x,y points for start and end of dial
+   * @param {Number} radius radis of circle
+   * @param {Number} startAngle angle of start point
+   * @param {Number} endAngle andgle of end point
+   * @return {Object} AN oject with x,y values for start and end points of dial
+   */
   const getDialCoords = (radius, startAngle, endAngle) => {
     var cx = dialX,
       cy = dialY;
@@ -116,6 +152,15 @@ export const multiDial = function({
     };
   };
 
+  /**
+   * Generates the path string to draw an svg path of the dial radius.  Takes a flag to determeine 
+   * if drawing the larger or smaller of a given arc on a circle
+   * @param {Number} radius - radius of circle
+   * @param {Number} startAngle - angle of start point
+   * @param {Number} endAngle - angle of end point
+   * @param {bool} useLargeArc - boolean the decide to use larger of two given arcs
+   * @return {String} An svg path string 
+   */
   const pathString = (radius, startAngle, endAngle, useLargeArc) => {
     var coords = getDialCoords(radius, startAngle, endAngle),
       start = coords.start,
@@ -137,8 +182,17 @@ export const multiDial = function({
     ].join(" ");
   };
 
-  const Animation = options => {
-    var duration = options.duration,
+  /**
+   * 
+   * @param {object} options - Animation options
+   * @param {number} options.duration - duration in seconds of anumation
+   * @param {number} options.start - start angle of dial
+   * @param {number} options.end - end angle of dial
+   * @param {function} options.step - fucntion to execute on each anuimation step
+   * @param {function} options.easing - function to execute for the type of easing
+   */
+  const animateDial = options => {
+    let duration = options.duration,
       currentIteration = 1,
       iterations = 60 * duration,
       start = options.start || 0,
@@ -148,7 +202,6 @@ export const multiDial = function({
       easing =
         options.easing ||
         function easeInOutCubic(pos) {
-          // https://github.com/danro/easing-js/blob/master/easing.js
           if ((pos /= 0.5) < 1) return 0.5 * Math.pow(pos, 3);
           return 0.5 * (Math.pow(pos - 2, 3) + 2);
         };
@@ -162,13 +215,18 @@ export const multiDial = function({
       if (progress < 1) {
         requestAnimationFrame(animate);
       }
-    }
-    // start!
+    }    
     requestAnimationFrame(animate);
   };
 
+  /**
+   * Draws change in dial value
+   * @param {Number} value - value to change to
+   * @param {SVGElement} svg_text - Text svg element to update
+   * @param {SVGElement} svg_path - Path svg element to update
+   */
   const updateDial = (value, svg_text, svg_path) => {
-    let newVal = getValueInPercentage(value, min, max);
+    let newVal = getValueInPercentage(value, svg_path.minValue, svg_path.maxValue);
     let angle =
         svg_path.startAngle > svg_path.endAngle
           ? normalizeAngle(
@@ -188,6 +246,7 @@ export const multiDial = function({
     let useLargeArc = angle <= 180 ? 0 : 1;
 
     svg_text.textContent = newVal;
+
     svg_path.svg.setAttribute(
       "d",
       pathString(
@@ -198,36 +257,49 @@ export const multiDial = function({
       )
     );
   };
+  
+  /**
+   * Updates color of dails based on value and colorSchedule
+   * @param {Number} value - DIal or text value to change to
+   * @param {Number} duration - Duration of animation
+   * @param {SVGElement} ring - WHich dial to update
+   */
+  const setColor = (value, duration, ring) => {  
+    let color = checkUserProp(ring, "colorSchedule", defaultColorSchedule)(value),      
+      dur = duration * 1000,
+        pathTransition = "stroke " + dur + "ms ease";
+        // textTransition = "fill " + dur + "ms ease";
 
+        ring.svg.style.stroke = color;
+        ring.svg.style.transition = pathTransition;
+    /*
+    gaugeValueElem.style = [
+      "fill: " + c,
+      "-webkit-transition: " + textTransition,
+      "-moz-transition: " + textTransition,
+      "transition: " + textTransition,
+    ].join(";");
+    */
+  }
+
+
+  /**
+   * Builds each dial and text assoicated with it.
+   * Checks for dial specific options and if not found then reverts to global defaults set.
+   * Creates object with SVGElement and all user options and adds it to the dial array
+   */
   const initializeDial = () => {
     for (let i = 0; i < numberDials; i++) {
       //Check if custom values for dials exist otherwise use defaults
-      let orientation =
-        individualDialOpts.length > i &&
-        individualDialOpts[i].hasOwnProperty("orientation")
-          ? individualDialOpts[i].orientation - 90
-          : defaultOrientation;
-      let stroke =
-        individualDialOpts.length > i &&
-        individualDialOpts[i].hasOwnProperty("stroke")
-          ? individualDialOpts[i].stroke
-          : defaultStroke;
-      let color =
-        individualDialOpts.length > i &&
-        individualDialOpts[i].hasOwnProperty("color")
-          ? individualDialOpts[i].color
-          : defaultColor;
-      let arc =
-        individualDialOpts.length > i &&
-        individualDialOpts[i].hasOwnProperty("arc")
-          ? individualDialOpts[i].arc
-          : defaultArc;
-      let lineCap =
-        individualDialOpts.length > i &&
-        individualDialOpts[i].hasOwnProperty("lineCap")
-          ? individualDialOpts[i].lineCap
-          : defaultLineCap;
-
+      let orientation = checkUserProp(individualDialOpts[i], "orientation", defaultOrientation) - 90;
+      let stroke = checkUserProp(individualDialOpts[i], "stroke", defaultStroke);
+      let color = checkUserProp(individualDialOpts[i], "color", defaultColor);
+      let arc = checkUserProp(individualDialOpts[i], "arc", defaultArc);
+      let lineCap = checkUserProp(individualDialOpts[i], "lineCap", defaultLineCap);
+      let minValue = checkUserProp(individualDialOpts[i], "minValue", defaultMinValue);
+      let maxValue = checkUserProp(individualDialOpts[i], "maxValue", defaultMaxValue);
+      let colorSchedule = checkUserProp(individualDialOpts[i], "colorSchedule", defaultColorSchedule);
+  
       let strokeOffset = individualDialOpts
         .slice(0, i)
         .map(e => {
@@ -258,8 +330,7 @@ export const multiDial = function({
               "dominant-baseline": "central"
             }
           }),
-          currentValue: "",
-          index: i
+          currentValue: ""          
         },
         dialPath = {
           svg: buildSVG({
@@ -275,8 +346,7 @@ export const multiDial = function({
           startAngle: startAngle,
           endAngle: endAngle,
           radius: newRadius,
-          type: "background Path",
-          index: i
+          type: "background Path"
         },
         dialCurrent = {
           svg: buildSVG({
@@ -295,10 +365,12 @@ export const multiDial = function({
           radius: newRadius,
           currentValue: defaultInitialValue,
           type: "Current Value Path",
-          index: i
+          minValue: minValue,
+          maxValue: maxValue,
+          colorSchedule: colorSchedule
         };
 
-      _dials.push(dialText, dialPath, dialCurrent);
+      dials.push(dialText, dialPath, dialCurrent);
     }
 
     let dialComplete = buildSVG({
@@ -307,7 +379,7 @@ export const multiDial = function({
         viewBox: viewBox || "0 0 100 100",
         class: dialComponentClass
       },
-      nestedDials: _dials.map(e => e.svg)
+      nestedDials: dials.map(e => e.svg)
     });
 
     _container.appendChild(dialComplete);
@@ -331,20 +403,20 @@ export const multiDial = function({
    * @param {Number} val - the value to update the dial to
    * @param {Integer} ring - which of the nested dials to update 0 being outside ring
    * @param {boolean} animate - animate change
-   * @param {double} duration - the duration in seconds of animation
+   * @param {double} duration - the duration in seconds of animate
    */
   this.setDialValue = (val, ring, animate, duration) => {
     console.log(`Dial: ${ring} - Value: ${val}`);
-    let svg_text = _dials[3 * ring],
-      svg_path = _dials[3 * ring + 2],
-      value = normalize(val, min, max);
+    let svg_text = dials[3 * ring],
+      svg_path = dials[3 * ring + 2],
+      value = limitValue(val, svg_path.minValue, svg_path.maxValue);
 
     if (defaultColor) {
-      //setGaugeColor(value, duration, ring);
+      setColor(value, duration, svg_path);
     }
 
     if (animate) {
-      Animation({
+      animateDial({
         start: svg_path.currentValue || 0,
         end: value,
         duration: duration || 1,
@@ -358,3 +430,17 @@ export const multiDial = function({
     }
   };
 };
+
+//AMD Support
+if (typeof define === "function" && define.amd)
+  define(function() {return multiDial;});
+
+//CommonJS Support
+ if (typeof module === "object" && module.exports)
+  module.exports = multiDial;
+
+
+  
+  
+  
+

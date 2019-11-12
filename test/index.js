@@ -1,16 +1,28 @@
-import { multiDial } from "../src/index.js";
-
 var elem = document.getElementsByTagName("input")[0].addEventListener("click", clickUpdateGauge)
 
 let testGauge = new multiDial({
     container: 'boatSpeed_gauge',
     numberDials: 3,
+    radius: 25,
     individualDialOpts: [
         {
             orientation: 180,
             stroke: 5,
-            color: 'red',
-            arc: 330
+            color: 'rgba(255,0,0,0.2)',
+            arc: 330,
+            maxValue: 100,
+            colorSchedule: function(value){
+                switch(true){
+                  case value < 25:
+                    return 'rgba(255,0,0,0.25)';
+                  case value >= 25 && value < 50:
+                    return 'rgba(255,0,0,0.5)';
+                  case value >= 50 && value < 75:
+                    return 'rgba(255,0,0,0.75)';
+                  case value >= 75:
+                      return 'rgba(255,0,0,1)';
+                }
+            }
         },
         {
             orientation: 180,
