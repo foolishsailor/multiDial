@@ -2,7 +2,7 @@
   "name": "multidial",
   "version": "0.0.3",
   "description": "A full featured dial that supports multiple dials and indicators",
-  "main": "dist/index.js",  
+  "main": "dist/index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "webpack --mode development --progress --colors --env=dev",
