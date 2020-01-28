@@ -1,6 +1,7 @@
 var elem = document.getElementsByTagName("input")[0].addEventListener("click", clickUpdateGauge)
+import {MultiDial} from '../dist/multiDial-0.0.3.js'
 
-let testGauge = new multiDial({
+let testGauge = new MultiDial({
     container: 'boatSpeed_gauge',
     numberDials: 3,
     radius: 25,

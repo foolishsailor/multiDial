@@ -1,14 +1,39 @@
 {
   "name": "multidial",
-  "version": "0.0.1",
+  "version": "0.0.3",
   "description": "A full featured dial that supports multiple dials and indicators",
-  "main": "index.js",
-  "directories": {
-    "test": "test"
-  },
+  "main": "dist/index.js",  
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "webpack --mode development --progress --colors --env=dev",
+    "build": "webpack --mode production --progress --colors --env=prod"
   },
-  "author": "",
-  "license": "ISC"
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/foolishsailor/multiDial.git"
+  },
+  "keywords": [
+    "SVG",
+    "Dial",
+    "Gauge",
+    "Component",
+    "Animation",
+    "Multi Dial"
+  ],
+  "author": "foolishsailor",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/foolishsailor/multiDial/issues"
+  },
+  "homepage": "https://foolishsailor.github.io/multiDial/",
+  "devDependencies": {
+    "@babel/core": "^7.7.2",
+    "@babel/preset-env": "^7.7.1",
+    "babel-loader": "^8.0.6",
+    "clean-webpack-plugin": "^3.0.0",
+    "path": "^0.12.7",
+    "webpack": "^4.41.2",
+    "webpack-cli": "^3.3.10",
+    "webpack-version-file-plugin": "^0.4.0"
+  }
 }
